@@ -1,0 +1,14 @@
+{
+  "pools": {
+    "system": {
+      "host": "localhost",
+      "port": 5454,
+      "user": "zayebot",
+      "password": "11111111",
+      "database": "zayebot",
+
+      "max": 1,
+      "connectionLimit": 1
+    }
+  }
+}

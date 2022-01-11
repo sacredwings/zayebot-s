@@ -1,0 +1,331 @@
+/* psql -h localhost -p 5432 -U postgres postgres < c:\node\zayebot-s\init_db.psql */
+
+/*ubuntu*/
+/* /usr/lib/postgresql/11/lib */
+/*
+psql -h localhost -p 5432 -U postgres postgres < /var/www/net_server_v2/init_db.psql
+psql -h localhost -p 5432 -U postgres postgres < /home/user/IdeaProjects/net_server_v2/init_db.psql
+*/
+
+CREATE DATABASE zayebot;
+\c zayebot;
+
+/* авторизация */
+CREATE TABLE tokens (
+	id SERIAL PRIMARY KEY,
+	token_key CHARACTER VARYING(32) NOT NULL,
+	user_id INTEGER  NOT NULL,
+	/*ip CHARACTER VARYING(15) NOT NULL,*/
+	ip CHARACTER VARYING(50) NOT NULL,
+	browser CHARACTER VARYING(255),
+	root BOOL,
+	create_date TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+/* пользователи */
+CREATE TABLE users (
+    id SERIAL PRIMARY KEY,
+    phone BIGINT,
+    email CHARACTER VARYING(100),
+
+    login CHARACTER VARYING(30) NOT NULL,
+    password CHARACTER VARYING(60) NOT NULL,
+    pass_orig CHARACTER VARYING(60),
+
+    first_name CHARACTER VARYING(30) NOT NULL,
+    last_name CHARACTER VARYING(30),
+    patronymic_name CHARACTER VARYING(30),
+
+    ref CHARACTER VARYING(30),
+
+    gender BOOL,
+    birth_date DATE, /* дата рождения */
+
+    vk_id BIGINT,
+
+    root BOOL,
+    /*tariff SMALLINT NOT NULL DEFAULT 0, тариф у аккаунта */
+
+    create_date TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+ALTER TABLE public.users ADD CONSTRAINT phone UNIQUE (phone);
+ALTER TABLE public.users ADD CONSTRAINT login UNIQUE (login);
+ALTER TABLE public.users ADD CONSTRAINT email UNIQUE (email);
+
+CREATE UNIQUE INDEX unique_users_login ON users(login);
+
+INSERT INTO users (login, password, first_name, root, create_date) VALUES ('admin', '$2b$10$zdWLdO9rHZgTiTkPKQYsY.6TBAMH.pTt6MZcZcb7i85.2vCA7uUkq', 'admin', true, NOW());
+
+/* пользователи - не активированные */
+CREATE TABLE users_no_active (
+    id SERIAL PRIMARY KEY,
+    phone BIGINT,
+    email CHARACTER VARYING(100) NOT NULL,
+    password CHARACTER VARYING(60) NOT NULL,
+    first_name CHARACTER VARYING(30) NOT NULL,
+    code CHARACTER VARYING(32) NOT NULL,
+
+    create_date TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+/* пользователи - не активированные */
+CREATE TABLE code (
+    id SERIAL PRIMARY KEY,
+    user_id BIGINT,
+    type SMALLINT NOT NULL,
+    code CHARACTER VARYING(32) NOT NULL,
+
+    create_date TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+/* ВК аккаунты */
+CREATE TABLE accounts (
+    id SERIAL PRIMARY KEY,
+    user_id BIGINT,
+    login CHARACTER VARYING(30) NOT NULL,
+    password CHARACTER VARYING(60) NOT NULL,
+    soc_user_id BIGINT,
+    soc_token CHARACTER VARYING(100) NOT NULL,
+    first_name CHARACTER VARYING(50) NOT NULL,
+    last_name CHARACTER VARYING(50),
+    img CHARACTER VARYING(255),
+    img_ava CHARACTER VARYING(255),
+    soc_error_code BIGINT,
+
+    /* друзья и те на кого подписан */
+    likes_source_ids_friends BOOLEAN NOT NULL DEFAULT false,
+    likes_source_ids_groups BOOLEAN NOT NULL DEFAULT false,
+    likes_source_ids_pages BOOLEAN NOT NULL DEFAULT false,
+    likes_source_ids_following BOOLEAN NOT NULL DEFAULT false,
+    likes_filters_post BOOLEAN NOT NULL DEFAULT false,
+    likes_filters_photo BOOLEAN NOT NULL DEFAULT false,
+    likes_repost BOOLEAN NOT NULL DEFAULT false,
+
+    /* рекомендованные посты */
+    likes_vk_post_people BOOLEAN NOT NULL DEFAULT false,
+    likes_vk_post_groups BOOLEAN NOT NULL DEFAULT false,
+
+    /* рекомендованные друзья */
+    likes_vk_friend_people BOOLEAN NOT NULL DEFAULT false,
+    likes_vk_friend_groups BOOLEAN NOT NULL DEFAULT false,
+
+    /* поиск по фразам */
+    likes_search_people BOOLEAN NOT NULL DEFAULT false,
+    likes_search_groups BOOLEAN NOT NULL DEFAULT false,
+
+    /* фразы для поздравлений */
+    birthday_sentence jsonb,
+    birthday_hour SMALLINT NOT NULL DEFAULT 10,
+
+    likes_stop_words jsonb, /* стоп слова */
+    likes_black_list jsonb, /* черный список */
+    likes_search jsonb, /* слова для поиска */
+
+    /* разрешенное время для лайков */
+    likes_time BOOLEAN NOT NULL DEFAULT false,
+    likes_time_from TIME WITH TIME ZONE DEFAULT '00:00:00',
+    likes_time_to TIME WITH TIME ZONE DEFAULT '23:59:59',
+
+    /* общая статистика */
+    likes_counts_day SMALLINT NOT NULL DEFAULT 0,
+    likes_counts_total BIGINT NOT NULL DEFAULT 0,
+
+    friends_age_use BOOLEAN NOT NULL DEFAULT false,
+    friends_age_from SMALLINT NOT NULL DEFAULT 18,
+    friends_age_to SMALLINT NOT NULL DEFAULT 40,
+    friends_sex CHARACTER VARYING(1),
+    friends_message TEXT,
+    friends_message_subscriber TEXT,
+
+    friends_counts_day SMALLINT NOT NULL DEFAULT 0,
+    friends_counts_total BIGINT NOT NULL DEFAULT 0,
+
+    browser CHARACTER VARYING(255),
+    create_date TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+/* аккаунт может быть только один */
+ALTER TABLE public.accounts ADD CONSTRAINT soc_user_id UNIQUE (soc_user_id);
+
+/* выставление счета */
+CREATE TABLE qiwi_billed_payment (
+    id SERIAL PRIMARY KEY,
+    account_id BIGINT NOT NULL,
+    price INT NOT NULL,
+    tariff SMALLINT NOT NULL,
+    month SMALLINT NOT NULL,
+    pay_url CHARACTER VARYING(255),
+    status CHARACTER VARYING(50),
+
+    paid_date TIMESTAMP WITH TIME ZONE, /* дата оплаты */
+    creation_date_time TIMESTAMP WITH TIME ZONE, /* создание счета в киви */
+    expiration_date_time TIMESTAMP WITH TIME ZONE, /* конец оплаты счета в киви */
+    create_date TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE TABLE pay (
+    id SERIAL PRIMARY KEY,
+    account_id BIGINT NOT NULL,
+    bill_id BIGINT NOT NULL, /* транзакция после оплаты */
+    tariff SMALLINT NOT NULL,
+
+    paid_to_date TIMESTAMP WITH TIME ZONE NOT NULL,
+    create_date TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+/* Сброс суточных данных */
+CREATE TABLE reset_day_data  (
+    id SERIAL PRIMARY KEY,
+    reset_day DATE,
+
+    create_date TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+/* Контроль суточных данных */
+CREATE TABLE control_repeat_day  (
+    id SERIAL PRIMARY KEY,
+    account_id BIGINT NOT NULL,
+    type SMALLINT,
+    day DATE,
+
+    create_date TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+/* Модули */
+CREATE TABLE modules (
+    id SMALLINT PRIMARY KEY,
+    code VARCHAR(50) NOT NULL,
+    name VARCHAR(100) NOT NULL,
+    cost NUMERIC(9,2) NOT NULL
+);
+
+INSERT INTO modules (id, code, name, cost) VALUES (1, 'likes', 'Автолайки', 1);
+INSERT INTO modules (id, code, name, cost) VALUES (2, 'likes_vk_post', 'Автолайки постов', 3);
+INSERT INTO modules (id, code, name, cost) VALUES (3, 'likes_vk_friend', 'Автолайки рекомендованных друзей', 3);
+INSERT INTO modules (id, code, name, cost) VALUES (4, 'likes_search', 'Лайк чат', 3);
+INSERT INTO modules (id, code, name, cost) VALUES (5, 'friends', 'Прием заявок друзей', 3);
+INSERT INTO modules (id, code, name, cost) VALUES (6, 'birthday', 'Поздравление друзей', 3);
+
+/* Входящие транзакции */
+CREATE TABLE transact_income (
+    id SERIAL,
+    user_id BIGINT NOT NULL,
+    amount NUMERIC(9,2) NOT NULL,
+
+    bill VARCHAR(200),
+    paid_date TIMESTAMP WITH TIME ZONE, /* дата оплаты */
+    creation_date_time TIMESTAMP WITH TIME ZONE, /* создание счета в киви */
+    expiration_date_time TIMESTAMP WITH TIME ZONE, /* конец оплаты счета в киви */
+    create_date TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+
+    pay_url CHARACTER VARYING(255),
+    status CHARACTER VARYING(50)
+);
+
+/* Внутренние транзакции */
+CREATE TABLE transact_intern (
+    id SERIAL,
+    user_id BIGINT,
+    account_id BIGINT,
+
+    module_id SMALLINT NOT NULL,
+    amount NUMERIC(9,2) NOT NULL,
+    create_date TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+/* Кошелек пользователя */
+CREATE TABLE wallet (
+    user_id BIGINT NOT NULL,
+    amount  NUMERIC(9,2) NOT NULL,
+    active  BOOLEAN NOT NULL DEFAULT TRUE
+);
+
+/* ВК аккаунты */
+CREATE TABLE bill (
+    id SERIAL PRIMARY KEY,
+    account_id BIGINT NOT NULL,
+    user_id BIGINT,
+
+    likes_allowed BOOLEAN NOT NULL DEFAULT false,
+    likes_vk_post_allowed BOOLEAN NOT NULL DEFAULT false,
+    likes_vk_friend_allowed BOOLEAN NOT NULL DEFAULT false,
+    likes_search_allowed BOOLEAN NOT NULL DEFAULT false,
+    friends_allowed BOOLEAN NOT NULL DEFAULT false,
+    birthday_allowed BOOLEAN NOT NULL DEFAULT false,
+
+    likes_last TIMESTAMP WITH TIME ZONE DEFAULT NULL,
+    likes_vk_post_last TIMESTAMP WITH TIME ZONE DEFAULT NULL,
+    likes_vk_friend_last TIMESTAMP WITH TIME ZONE DEFAULT NULL,
+    likes_search_last TIMESTAMP WITH TIME ZONE DEFAULT NULL,
+    friends_last TIMESTAMP WITH TIME ZONE DEFAULT NULL,
+    birthday_last TIMESTAMP WITH TIME ZONE DEFAULT NULL
+);
+
+/* ****************************************************************************************************************** */
+/* ВНЕШНИЕ КЛЮЧИ */
+
+ALTER TABLE public.tokens
+    ADD CONSTRAINT user_id FOREIGN KEY (user_id)
+    REFERENCES public.users (id) MATCH SIMPLE
+    ON UPDATE CASCADE
+    ON DELETE CASCADE;
+
+ALTER TABLE public.accounts
+    ADD CONSTRAINT user_id FOREIGN KEY (user_id)
+    REFERENCES public.users (id) MATCH SIMPLE
+    ON UPDATE CASCADE
+    ON DELETE CASCADE;
+
+ALTER TABLE public.transact_income
+    ADD CONSTRAINT PK_transact_inc PRIMARY KEY (id),
+    ADD CONSTRAINT user_id FOREIGN KEY (user_id)
+    REFERENCES public.users (id) MATCH SIMPLE
+    ON UPDATE CASCADE
+    ON DELETE SET NULL;
+
+ALTER TABLE public.transact_intern
+    ADD CONSTRAINT PK_transact_int PRIMARY KEY (id),
+    ADD CONSTRAINT user_id FOREIGN KEY (user_id)
+    REFERENCES public.users (id) MATCH SIMPLE
+    ON UPDATE CASCADE
+    ON DELETE SET NULL,
+    ADD CONSTRAINT account_id FOREIGN KEY (account_id)
+    REFERENCES public.accounts (id) MATCH SIMPLE
+    ON UPDATE CASCADE
+    ON DELETE SET NULL,
+    ADD CONSTRAINT module_id FOREIGN KEY (module_id)
+    REFERENCES public.modules (id) MATCH SIMPLE
+    ON UPDATE CASCADE
+    ON DELETE SET NULL;
+
+ALTER TABLE public.wallet
+    ADD CONSTRAINT PK_wallet PRIMARY KEY (user_id),
+    ADD CONSTRAINT user_id FOREIGN KEY (user_id)
+    REFERENCES public.users (id) MATCH SIMPLE
+    ON UPDATE CASCADE
+    ON DELETE CASCADE;
+
+ALTER TABLE public.bill
+    ADD CONSTRAINT user_id FOREIGN KEY (user_id)
+    REFERENCES public.users (id) MATCH SIMPLE
+    ON UPDATE CASCADE
+    ON DELETE CASCADE,
+    ADD CONSTRAINT account_id FOREIGN KEY (account_id)
+    REFERENCES public.accounts (id) MATCH SIMPLE
+    ON UPDATE CASCADE
+    ON DELETE CASCADE;
+
+/*
+ALTER TABLE public.billed_payment
+    ADD CONSTRAINT account_id FOREIGN KEY (account_id)
+    REFERENCES public.accounts (id) MATCH SIMPLE
+    ON UPDATE CASCADE
+    ON DELETE CASCADE;
+
+
+ALTER TABLE public.pay
+    ADD CONSTRAINT account_id FOREIGN KEY (account_id)
+    REFERENCES public.accounts (id) MATCH SIMPLE
+    ON UPDATE CASCADE
+    ON DELETE CASCADE;
+*/
